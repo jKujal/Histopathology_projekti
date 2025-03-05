@@ -8,6 +8,7 @@ def aslist(lst):
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--net', choices=['VGG', 'VGG_like'], default='VGG')
     parser.add_argument('--data_split', choices=['sss','sgkf',], default='sss')
     parser.add_argument('--model', choices=['vgg_like', 'vgg16',], default='vgg16')
     parser.add_argument('--seed', type=int, default='481516')

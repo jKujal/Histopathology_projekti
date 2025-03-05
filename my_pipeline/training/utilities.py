@@ -88,6 +88,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
     correct = 0
     all_samples = 0
+    # confusion_matrix = np.zeros((2, 2), dtype=np.uint64)
 
     with torch.no_grad():
         for i, batch in enumerate(test_loader):
@@ -113,9 +114,11 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
             running_loss += loss.item()
 
             # Get the predicted class, which is the one with the highest probability, the maximum value
-            prediction = np.array(probs_lst).argmax(1)
+            predictions = np.array(probs_lst).argmax(1)
             # Compare predicted labels to the actual true labels, and calculate correct=True predictions
-            correct += np.equal(prediction, np.array(ground_truth_list)).sum()
+            correct += np.equal(predictions, np.array(ground_truth_list)).sum()
+
+            # confusion_matrix += calculate_confusion_matrix_from_arrays(predictions, labels.to('cpu').numpy(), 2)
 
             all_samples += len(np.array(ground_truth_list))
 
@@ -128,4 +131,30 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
         progress.close()
 
-    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples
+    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples # confusion_matrix
+
+def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
+    """Calculate confusion matrix from arrays
+
+    https://github.com/ternaus/robot-surgery-segmentation/blob/master/validation.py#L77-L88
+
+    :param prediction:
+    :param ground_truth:
+    :param nr_labels:
+    :return:
+
+    """
+    replace_indices = np.vstack((
+        ground_truth.flatten(),
+        prediction.flatten())
+    ).T
+
+    confusion_matrix, _ = np.histogramdd(
+        replace_indices,
+        bins=(nr_labels, nr_labels),
+        range=[(0, nr_labels), (0, nr_labels)]
+    )
+
+    confusion_matrix = confusion_matrix.astype(np.uint64)
+
+    return confusion_matrix
