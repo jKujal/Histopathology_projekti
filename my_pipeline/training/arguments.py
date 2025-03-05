@@ -8,8 +8,6 @@ def aslist(lst):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_root', default='data/')
-    parser.add_argument('--dataset_name', default='Histo')
     parser.add_argument('--data_split', choices=['sss','sgkf',], default='sss')
     parser.add_argument('--model', choices=['vgg_like', 'vgg16',], default='vgg16')
     parser.add_argument('--seed', type=int, default='481516')

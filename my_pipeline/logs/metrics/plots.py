@@ -15,13 +15,15 @@ def create_confusion_matrix(ground_truth, predictions, log_path, nth_split):
     plt.show()
 
 
-def create_loss_plot(train_loss, validation_loss, log_path, nth_split):
+def create_loss_plot(train_loss, val_loss, logs_path, epoch):
+    plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
-    plt.plot(train_loss, label='Training loss')
-    plt.plot(validation_loss, label='Validation loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.autoscale(enable=True, axis='Both')
+    plt.plot(train_loss, linestyle='solid' ,label="Training loss")
+    plt.plot(val_loss, linestyle='solid', label="Validation loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.autoscale(enable=True, axis="Both")
+    plt.title("Training vs. Validation loss")
     plt.legend()
-    plt.savefig(os.path.join(log_path, f'loss_plot_split_{nth_split}.png'))
+    plt.savefig(os.path.join(logs_path, f"loss_plot_epoch_{epoch}"))
     plt.show()

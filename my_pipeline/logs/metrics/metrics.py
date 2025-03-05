@@ -1,8 +1,8 @@
 from my_pipeline.logs.metrics import plots
 
 
-def logs(train_losses, validation_losses, ground_truth, predictions, args, log_path, nth_split):
-    # Create the confusion matrix and loss plots
+def logs(args, logs_path, results_list, train_loss, val_loss, epoch):
 
-    plots.create_confusion_matrix(ground_truth, predictions, log_path, nth_split)
-    plots.create_loss_plot(train_losses, validation_losses, log_path, nth_split)
+    # plots.create_confusion_matrix()
+    plots.create_loss_plot(train_loss, val_loss, logs_path, epoch)
+
