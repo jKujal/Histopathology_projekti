@@ -2,9 +2,10 @@ import gc
 import os
 import time
 import warnings
-
+import random
 import cv2
 import torch
+import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
 from my_pipeline.data import dataset_splits, histodatahandler
@@ -21,6 +22,12 @@ if __name__ == "__main__":
 
     args = arguments.parse_args()
 
+    # Lockdown seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
     data_file_path = histodatahandler.create_histo_data()
 
     if args.data_split == 'sgkf':
@@ -35,9 +42,9 @@ if __name__ == "__main__":
     print(net)
 
     nth_split = 1;
-    # # Setup confusion matrix fancy print
-    # labels = ["True", "False"]
-    # headers = [""] + labels
+    # Setup confusion matrix fancy print
+    labels = ["True", "False"]
+    headers = [""] + labels
 
     snapshot_name = time.strftime('%Y_%m_%d_%H_%M')
     logs_path = os.path.join("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo", "Logs", snapshot_name)
@@ -68,7 +75,7 @@ if __name__ == "__main__":
             for epoch in range(args.n_epochs):
 
                 train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch)
-                validation_loss, predictions, ground_truth, accuracy = utilities.validate_epoch(net,
+                validation_loss, predictions, ground_truth, accuracy, confusion_matrix = utilities.validate_epoch(net,
                                                                                                 val_loader,
                                                                                                 criterion, args,
                                                                                                 epoch)
@@ -78,9 +85,9 @@ if __name__ == "__main__":
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
 
-                # # Print confusion matrix
-                # table = [[label] + row.tolist() for label, row in zip(labels, confusion_matrix)]
-                # print(tabulate(table, headers=headers, tablefmt="grid"))
+                # Print confusion matrix
+                table = [[label] + row.tolist() for label, row in zip(labels, confusion_matrix)]
+                print(tabulate(table, headers=headers, tablefmt="grid"))
 
                 if epoch % 9 == 0 and epoch != 0:
                     metrics.logs(args, logs_path, results_list, train_list, val_list, epoch, index)
@@ -93,6 +100,7 @@ if __name__ == "__main__":
 
         state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
         cur_snapshot_name = os.path.join(logs_path, args.net + "_" + args.optimzer + "_" + f"split#{nth_split}.pth")
+        print(cur_snapshot_name)
         torch.save(state, cur_snapshot_name)
         snapshots[index] = cur_snapshot_name
 

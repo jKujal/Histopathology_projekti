@@ -88,7 +88,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
     correct = 0
     all_samples = 0
-    # confusion_matrix = np.zeros((2, 2), dtype=np.uint64)
+    confusion_matrix = np.zeros((2, 2), dtype=np.uint64)
 
     with torch.no_grad():
         for i, batch in enumerate(test_loader):
@@ -99,7 +99,6 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
             # Cross entropy loss model output vs actual labels for batch
             # Forwards feed
-            # F.binary_cross_entropy?
             loss = criterion(outputs, labels)
 
             # Squish the output values to a probability range between 0 and 1
@@ -118,7 +117,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
             # Compare predicted labels to the actual true labels, and calculate correct=True predictions
             correct += np.equal(predictions, np.array(ground_truth_list)).sum()
 
-            # confusion_matrix += calculate_confusion_matrix_from_arrays(predictions, labels.to('cpu').numpy(), 2)
+            confusion_matrix += calculate_confusion_matrix_from_arrays(predictions, np.array(ground_truth_list), 2)
 
             all_samples += len(np.array(ground_truth_list))
 
@@ -131,7 +130,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
         progress.close()
 
-    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples # confusion_matrix
+    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples, confusion_matrix
 
 def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
     """Calculate confusion matrix from arrays
