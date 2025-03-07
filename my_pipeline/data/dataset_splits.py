@@ -1,8 +1,12 @@
+import numpy as np
 import pandas as pd
 import torch
+import solt.core as slc
+import solt.transforms as slt
+import cv2
 from PIL import Image
-from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.model_selection import StratifiedShuffleSplit
+from numpy.ma.core import concatenate
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedShuffleSplit, GroupShuffleSplit
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
@@ -10,9 +14,9 @@ from my_pipeline.data import transformations
 
 
 class ImageDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
-        self.dataframe = dataframe
-        self.transform = transform
+    def __init__(self, split, transforms=None):
+        self.dataframe = split
+        self.transform = transforms
 
     def __len__(self):
         return len(self.dataframe)
@@ -21,7 +25,7 @@ class ImageDataset(Dataset):
         if isinstance(idx, torch.Tensor):
             idx = idx.item()
         image_path = self.dataframe.iloc[idx, 2]
-        image = Image.open(image_path).convert("RGB")
+        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         label = self.dataframe.iloc[idx, 1]
         group = self.dataframe.iloc[idx, 0]
 
@@ -61,8 +65,8 @@ def create_groupKfold_split(csv_file_path, args):
         train_df = df.iloc[train_index]
         test_valid_df = df.iloc[test_valid_index]
 
-        train_dataset = ImageDataset(train_df, transform=transform)
-        test_dataset = ImageDataset(test_valid_df, transform=transform)
+        train_dataset = ImageDataset(train_df, transforms=transform)
+        test_dataset = ImageDataset(test_valid_df, transforms=transform)
 
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
@@ -73,7 +77,7 @@ def create_groupKfold_split(csv_file_path, args):
     for test_index, valid_index in sss_test_and_val.split(df, df['Class']):
         validation_df = df.iloc[valid_index]
 
-        validation_dataset = ImageDataset(validation_df, transform=transform)
+        validation_dataset = ImageDataset(validation_df, transforms=transform)
 
         validation_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False)
 
@@ -117,7 +121,7 @@ def create_shuffle_split(csv_file_path, args):
         test_valid_df = df.iloc[test_valid_index]
 
         # Do image transformations for each dataset
-        train_dataset = ImageDataset(train_df, transform=transform)
+        train_dataset = ImageDataset(train_df, transforms=transform)
 
         # Pytorch dataloaders
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
@@ -129,8 +133,8 @@ def create_shuffle_split(csv_file_path, args):
             test_df = test_valid_df.iloc[test_index]
             validation_df = test_valid_df.iloc[valid_index]
 
-            test_dataset = ImageDataset(test_df, transform=transform)
-            validation_dataset = ImageDataset(validation_df, transform=transform)
+            test_dataset = ImageDataset(test_df, transforms=transform)
+            validation_dataset = ImageDataset(validation_df, transforms=transform)
 
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
             validation_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=False)
@@ -138,3 +142,80 @@ def create_shuffle_split(csv_file_path, args):
             loaders.append([train_loader, test_loader, validation_loader])
 
     return loaders
+
+
+def concatenate_column_values(dframe, cols):
+    """
+    @param dframe: Pandas DataFrame
+    @param cols: List of columns
+    @return: Pandas DataFrame
+    """
+    return pd.Series(map(''.join, dframe[cols].values.astype(str).tolist()), index=dframe.index)
+
+
+def initiate_splits(args, metadata):
+    gfk = StratifiedGroupKFold(n_splits=args.k_folds)
+
+    y = concatenate_column_values(dframe=metadata, cols=['FolderID'])
+    gfk_split = gfk.split(metadata, y=y, groups=metadata.FolderID.astype(str))
+
+    cv_split = [x for x in gfk_split]
+
+    return cv_split
+
+
+def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
+    gss = GroupShuffleSplit(n_splits=args.n_splits, test_size=0.2, train_size=0.8, random_state=args.seed)
+    gss_split = gss.split(metadata, metadata.Class, metadata.FolderID)
+
+    split = [x for x in gss_split]
+
+    training_index = split[0][0]
+    holdout_index = split[0][1]
+
+    train_metadata = metadata.iloc[training_index]
+    holdout_metadata = metadata.iloc[holdout_index]
+
+    train_metadata.to_csv(f"{metadata_folder}/{dataset}_train_metadata.csv", index=None)
+    holdout_metadata.to_csv(f"{metadata_folder}/{dataset}_holdout_metadata.csv", index=None)
+
+    return split
+
+
+def init_folds(args, cv_split):
+    cv_split_train_val = {}
+
+    for fold_id, split in enumerate(cv_split):
+        if fold_id != args.train_fold and args.train_fold > -1:
+            continue
+        cv_split_train_val[fold_id] = split
+
+    return cv_split_train_val
+
+
+def init_loaders(args, train_split, val_split):
+    transformations = init_transformations(args)
+
+    if args.transform:
+        train_dataset = ImageDataset(split=train_split, transforms=transformations['train'])
+        val_dataset = ImageDataset(split=val_split)
+
+    else:
+        train_dataset = ImageDataset(split=train_split)
+        val_dataset = ImageDataset(split=val_split)
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_threads, drop_last=True,
+                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)))
+    val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads)
+
+    return train_loader, val_loader
+
+
+def init_transformations(args):
+    rotation_range = (-5, 5)
+    train_trsf = slc.Stream([
+        slt.Flip(p=0.25, axis=-1),
+        slt.Rotate(angle_range=(rotation_range[0], rotation_range[1]), p=0.25),
+    ])
+
+    return {"train": train_trsf}

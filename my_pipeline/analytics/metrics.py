@@ -1,5 +1,5 @@
 import os
-from my_pipeline.logs.metrics import plots
+from my_pipeline.analytics import plots
 
 
 
