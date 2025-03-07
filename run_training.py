@@ -9,7 +9,7 @@ import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
 from my_pipeline.data import dataset_splits, histodatahandler
-from my_pipeline.logs.metrics import metrics
+from my_pipeline.logs import metrics
 from my_pipeline.training import arguments, utilities
 
 cv2.ocl.setUseOpenCL(False)
