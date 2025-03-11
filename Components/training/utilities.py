@@ -1,0 +1,159 @@
+import gc
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch import nn
+from torch import optim
+from torchvision.models import vgg16_bn
+from tqdm import tqdm
+from Components.models import vgg_types
+
+
+def init_model(args):
+    if args.model == 'vgg16':
+        net = vgg16_bn(weights=False)
+        num_ftrs = net.classifier[6].in_features  # ?
+        net.classifier[6] = nn.Linear(in_features=num_ftrs, out_features=2, bias=True)  # ?
+        net = net.to('cuda:0')
+        return net
+    else:
+        net = vgg_types.VGG(num_classes=2, init_weights=True)
+        net = net.to('cuda:0')
+        return net
+
+
+def init_loss():
+    criterion = nn.CrossEntropyLoss()
+
+    return criterion
+
+
+def init_optimizer(args, parameters):
+    if args.optimizer == 'adam':
+        return optim.Adam(parameters, lr=args.lr, weight_decay=args.wd)
+    elif args.optimizer == 'sgd':
+        return optim.SGD(parameters, lr=args.lr, weight_decay=args.wd, momentum=0.9, nesterov=args.set_nesterov)
+    else:
+        raise NotImplementedError
+
+
+def train_epoch(args, net, optimizer, train_loader, criterion, epoch):
+    net.train(True)
+    running_loss = 0.0
+
+    n_batches = len(train_loader)
+    max_epochs = args.n_epochs
+
+    # Grab "next" iterable from..
+    device = next(net.parameters()).device
+
+    progress = tqdm(total=n_batches)
+    for i, batch in enumerate(train_loader):
+        images = batch['image'].to(device)
+        labels = batch['label'].long().to(device)
+
+        optimizer.zero_grad()
+
+        # Forwards feed
+        outputs = net(images)  #
+        loss = criterion(outputs, labels)  # CrossEntropyLoss
+
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+
+        progress.set_description(
+            f'[{epoch + 1} | {max_epochs}] Train loss: {running_loss / (i + 1):.3f} / Loss {loss.item():.3f}')  #
+        progress.update()
+
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    progress.close()
+
+    return running_loss / n_batches
+
+
+def validate_epoch(net, test_loader, criterion, args, epoch):
+    net.eval()
+    running_loss = 0.0
+    n_batches = len(test_loader)
+    max_epoch = args.n_epochs
+    device = next(net.parameters()).device
+
+    probs_lst = []
+    ground_truth_list = []
+
+    progress = tqdm(total=n_batches)
+
+    correct = 0
+    all_samples = 0
+    confusion_matrix = np.zeros((2, 2), dtype=np.uint64)
+
+    with torch.no_grad():
+        for i, batch in enumerate(test_loader):
+            images = batch['image'].to(device)
+            labels = batch['label'].long().to(device)
+
+            outputs = net(images)
+
+            # Cross entropy loss model output vs actual labels for batch
+            # Forwards feed
+            loss = criterion(outputs, labels)
+
+            # Squish the output values to a probability range between 0 and 1
+            # In our case because there are only 2 classes..
+            probs_batch = F.softmax(outputs, 1).data.to('cpu').numpy()
+
+            ground_truth_batch = batch['label'].numpy()
+
+            probs_lst.extend(probs_batch.tolist())
+            ground_truth_list.extend(ground_truth_batch.tolist())
+
+            running_loss += loss.item()
+
+            # Get the predicted class, which is the one with the highest probability, the maximum value
+            predictions = np.array(probs_lst).argmax(1)
+            # Compare predicted labels to the actual true labels, and calculate correct=True predictions
+            correct += np.equal(predictions, np.array(ground_truth_list)).sum()
+
+            confusion_matrix += calculate_confusion_matrix_from_arrays(predictions, np.array(ground_truth_list), 2)
+
+            all_samples += len(np.array(ground_truth_list))
+
+            progress.set_description(
+                f'[{epoch + 1} | {max_epoch}] Validation accuracy: {100. * correct / all_samples:.0f}%')
+            progress.update()
+
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        progress.close()
+
+    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples, confusion_matrix
+
+def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
+    """Calculate confusion matrix from arrays
+
+    https://github.com/ternaus/robot-surgery-segmentation/blob/master/validation.py#L77-L88
+
+    :param prediction:
+    :param ground_truth:
+    :param nr_labels:
+    :return:
+
+    """
+    replace_indices = np.vstack((
+        ground_truth.flatten(),
+        prediction.flatten())
+    ).T
+
+    confusion_matrix, _ = np.histogramdd(
+        replace_indices,
+        bins=(nr_labels, nr_labels),
+        range=[(0, nr_labels), (0, nr_labels)]
+    )
+
+    confusion_matrix = confusion_matrix.astype(np.uint64)
+
+    return confusion_matrix

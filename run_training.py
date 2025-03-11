@@ -10,10 +10,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
-from my_pipeline.data import dataset_splits, histodatahandler
-from my_pipeline.analytics import metrics
-from my_pipeline.data.dataset_splits import initiate_splits, init_folds, init_loaders
-from my_pipeline.training import arguments, utilities
+from Components.data_processing import dataset_splits, histodatahandler
+from Components.analytics import metrics
+from Components.data_processing.dataset_splits import initiate_gfk_splits, init_folds, init_loaders, split_train_holdout
+from Components.training import arguments, utilities
+from torchinfo import summary
 
 cv2.ocl.setUseOpenCL(False)
 cv2.setNumThreads(0)
@@ -32,17 +33,15 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(args.seed)
 
     data_file_path = histodatahandler.create_histo_data()
+    snapshot_name = time.strftime('%Y_%m_%d_%H_%M')
+    logs_path = os.path.join("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo", "Logs", snapshot_name)
+    os.makedirs(os.path.join(logs_path), exist_ok=True)
+
     metadata = pd.read_csv(data_file_path)
 
-    cv_splits = initiate_splits(args, metadata)
+    train_metadata = split_train_holdout(args, metadata, os.path.join(logs_path, "Data"), dataset="histo")
+    cv_splits = initiate_gfk_splits(args, train_metadata)
     cv_split_train_val = init_folds(args, cv_splits)
-
-    # if args.data_split == 'sgkf':
-    #     loaders = dataset_splits.create_groupKfold_split(data_file_path, args)
-    # elif args.data_split == 'sss':
-    #     loaders = dataset_splits.create_shuffle_split(data_file_path, args)
-    # else:
-    #     raise NotImplementedError("Not implemented")
 
     net = utilities.init_model(args)
     optimizer = utilities.init_optimizer(args, net.parameters())
@@ -52,19 +51,20 @@ if __name__ == "__main__":
         scheduler = MultiStepLR(optimizer, milestones=args.lr_drop,
                                 gamma=args.learning_rate_decay)  # No need with adam(?)
 
-    print(net)
+    # Show structure and forward feed shapes
+
+
+    summary(net, input_size=(args.batch_size, 3, 50, 50),
+            col_names=['input_size', 'output_size', 'kernel_size', 'trainable'])
 
     nth_split = 1;
     # Setup confusion matrix fancy print
     labels = ["True", "False"]
     headers = [""] + labels
 
-    snapshot_name = time.strftime('%Y_%m_%d_%H_%M')
-    logs_path = os.path.join("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo", "Logs", snapshot_name)
-
     snapshots = [None, None]
 
-    for index, _ in enumerate(snapshots):
+    for spsht_index, _ in enumerate(snapshots):
 
         # if index = 1:
         #     load pretrained weights and train again
@@ -92,7 +92,8 @@ if __name__ == "__main__":
                 print('Validation accuracy: ', round(accuracy, 4))
                 results_list.append(
                     {"Training loss": train_loss, "Validation loss": validation_loss, "ground_truth:": ground_truth,
-                     "predictions:": predictions, "Epoch": epoch, "Split_#": nth_split})
+                     "predictions:": predictions, "Epoch": epoch, "Split_#": nth_split, "TP": confusion_matrix[0, 0],
+                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0]})
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
 
@@ -101,7 +102,7 @@ if __name__ == "__main__":
                 print(tabulate(table, headers=headers, tablefmt="grid"))
 
                 if epoch % 9 == 0 and epoch != 0:
-                    metrics.logs(args, logs_path, results_list, train_list, val_list, epoch, index)
+                    metrics.logging(args, logs_path, results_list, train_list, val_list, epoch, spsht_index)
 
                 if args.optimizer == 'sgd':
                     scheduler.step()
@@ -113,7 +114,7 @@ if __name__ == "__main__":
         cur_snapshot_name = os.path.join(logs_path, args.net + "_" + args.optimzer + "_" + f"split#{nth_split}.pth")
         print(cur_snapshot_name)
         torch.save(state, cur_snapshot_name)
-        snapshots[index] = cur_snapshot_name
+        snapshots[spsht_index] = cur_snapshot_name
 
         torch.cuda.empty_cache()
         del net
