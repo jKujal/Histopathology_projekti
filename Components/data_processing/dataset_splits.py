@@ -86,6 +86,12 @@ def initiate_gfk_splits(args, metadata):
 
 
 def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
+
+    if args.subsample:
+        metadata = metadata.groupby('Class').apply(
+            lambda x: x.sample(frac=0.05)
+        )
+
     gss = GroupShuffleSplit(n_splits=args.n_splits, test_size=0.2, train_size=0.8, random_state=args.seed)
     gss_split = gss.split(metadata, metadata.Class, metadata.FolderID)
 

@@ -52,8 +52,6 @@ if __name__ == "__main__":
                                 gamma=args.learning_rate_decay)  # No need with adam(?)
 
     # Show structure and forward feed shapes
-
-
     summary(net, input_size=(args.batch_size, 3, 50, 50),
             col_names=['input_size', 'output_size', 'kernel_size', 'trainable'])
 
@@ -69,6 +67,7 @@ if __name__ == "__main__":
         # if index = 1:
         #     load pretrained weights and train again
         #
+
         for fold_id in cv_split_train_val:
 
             train_index, val_index = cv_split_train_val[fold_id]
@@ -101,8 +100,7 @@ if __name__ == "__main__":
                 table = [[label] + row.tolist() for label, row in zip(labels, confusion_matrix)]
                 print(tabulate(table, headers=headers, tablefmt="grid"))
 
-                if epoch % 9 == 0 and epoch != 0:
-                    metrics.logging(args, logs_path, results_list, train_list, val_list, epoch, spsht_index)
+                metrics.logging(args, logs_path, results_list, train_list, val_list, epoch, fold_id, spsht_index)
 
                 if args.optimizer == 'sgd':
                     scheduler.step()
