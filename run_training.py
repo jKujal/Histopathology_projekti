@@ -43,6 +43,7 @@ if __name__ == "__main__":
     cv_splits = initiate_gfk_splits(args, train_metadata)
     cv_split_train_val = init_folds(args, cv_splits)
 
+
     net = utilities.init_model(args)
     optimizer = utilities.init_optimizer(args, net.parameters())
 
@@ -66,7 +67,7 @@ if __name__ == "__main__":
 
         # if index = 1:
         #     load pretrained weights and train again
-        #
+        #      net_state_dict = torch.load(args.model_state_params_dir, weights_only=False)
 
         for fold_id in cv_split_train_val:
 
@@ -88,10 +89,9 @@ if __name__ == "__main__":
                                                                                                                   args,
                                                                                                                   epoch)
 
-                print('Validation accuracy: ', round(accuracy, 4))
                 results_list.append(
-                    {"Training loss": train_loss, "Validation loss": validation_loss, "ground_truth:": ground_truth,
-                     "predictions:": predictions, "Epoch": epoch, "Split_#": nth_split, "TP": confusion_matrix[0, 0],
+                    {"Training loss": train_loss, "Validation loss": validation_loss, "ground_truth": ground_truth,
+                     "predictions": predictions, "Epoch": epoch, "Split_#": nth_split, "TP": confusion_matrix[0, 0],
                      "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0]})
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
@@ -109,10 +109,12 @@ if __name__ == "__main__":
             nth_split += 1
 
         state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
-        cur_snapshot_name = os.path.join(logs_path, args.net + "_" + args.optimzer + "_" + f"split#{nth_split}.pth")
+        cur_snapshot_name = os.path.join(logs_path, args.net + "_" + args.optimizer + "_" + f"split#{nth_split}.pth")
         print(cur_snapshot_name)
         torch.save(state, cur_snapshot_name)
         snapshots[spsht_index] = cur_snapshot_name
 
         torch.cuda.empty_cache()
-        del net
+        gc.collect()
+
+    del net

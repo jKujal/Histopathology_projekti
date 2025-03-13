@@ -16,7 +16,12 @@ def init_model(args):
         net.classifier[6] = nn.Linear(in_features=num_ftrs, out_features=2, bias=True)  # ?
         net = net.to('cuda:0')
         return net
-    else:
+    elif args.model == 'VGGNDrop':
+        net = vgg_types.VGGBNDrop(num_classes=2, init_weights=True)
+        net = net.to('cuda:0')
+        return net
+    elif args.model == 'VGG':
+
         net = vgg_types.VGG(num_classes=2, init_weights=True)
         net = net.to('cuda:0')
         return net
@@ -63,7 +68,7 @@ def train_epoch(args, net, optimizer, train_loader, criterion, epoch):
         running_loss += loss.item()
 
         progress.set_description(
-            f'[{epoch + 1} | {max_epochs}] Train loss: {running_loss / (i + 1):.3f} / Loss {loss.item():.3f}')  #
+            f'[{epoch + 1} | {max_epochs}] Average train loss: {running_loss / (i + 1):.3f} / Batch loss {loss.item():.3f}')  #
         progress.update()
 
         gc.collect()

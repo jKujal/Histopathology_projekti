@@ -18,10 +18,10 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--val_batch_size', type=int, default=64)
     parser.add_argument('--subsample', type=bool, default=True)
-    parser.add_argument('--k_folds', type=int, choices=[5, 10], default=5)
+    parser.add_argument('--k_folds', type=int, choices=[5, 10], default=2)
     parser.add_argument('--n_splits', type=int, default=1)
     parser.add_argument('--lr', type=float, choices=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 5, 10],
-                        default=1e-1)  # Can increase
+                        default=1e-5)  # Can increase
     parser.add_argument('--lr_drop', type=aslist, choices=[[160, 260]], default=[160, 260])
     parser.add_argument('--wd', type=float, choices=[5e-4, 1e-4, 1e-3, 1e-2], default=5e-2)
     parser.add_argument('--optimizer', type=str, choices=['adam', 'sgd'], default='adam')
