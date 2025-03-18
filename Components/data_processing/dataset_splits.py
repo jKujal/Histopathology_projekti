@@ -133,8 +133,8 @@ def init_loaders(args, train_split, val_split):
         val_dataset = ImageDataset(split=val_split)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_threads, drop_last=True,
-                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)))
-    val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads)
+                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)), pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads, pin_memory=True)
 
     return train_loader, val_loader
 
