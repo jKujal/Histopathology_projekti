@@ -9,7 +9,15 @@ from tqdm import tqdm
 from Components.models import vgg_types
 
 
-def init_model(args):
+def adjust_state_dict(state_dict, num_classes=2):
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if 'classifier.5' not in k:  # Exclude weights and biases of the last layer
+            new_state_dict[k] = v
+    return new_state_dict
+
+
+def init_model(args, classes=10):
     if args.model == 'vgg16':
         net = vgg16_bn(weights=False)
         num_ftrs = net.classifier[6].in_features  # ?
@@ -17,12 +25,12 @@ def init_model(args):
         net = net.to('cuda:0')
         return net
     elif args.model == 'VGGNDrop':
-        net = vgg_types.VGGBNDrop(num_classes=2, init_weights=True)
+        net = vgg_types.VGGBNDrop(num_classes=classes, init_weights=False)
         net = net.to('cuda:0')
         return net
     elif args.model == 'VGG':
 
-        net = vgg_types.VGG(num_classes=2, init_weights=True)
+        net = vgg_types.VGG(num_classes=classes, init_weights=True)
         net = net.to('cuda:0')
         return net
 
@@ -51,24 +59,25 @@ def train_epoch(args, net, optimizer, train_loader, criterion, epoch):
 
     # Grab "next" iterable from..
     device = next(net.parameters()).device
+    criterion = BCEWithLogitsLoss2d().to(device)
 
     progress = tqdm(total=n_batches)
     for i, batch in enumerate(train_loader):
         images = batch['image'].to(device)
-        labels = batch['label'].long().to(device)
+        labels = batch['label'].to(device)
 
         optimizer.zero_grad()
 
         # Forwards feed
         outputs = net(images)  #
-        loss = criterion(outputs, labels)  # CrossEntropyLoss
+        loss = criterion(outputs, labels.float())  # CrossEntropyLoss
 
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
 
         progress.set_description(
-            f'[{epoch + 1} | {max_epochs}] Average train loss: {running_loss / (i + 1):.3f} / Batch loss {loss.item():.3f}')  #
+            f'[{epoch + 1} | {max_epochs+1}] Average train loss: {running_loss / (i + 1):.3f} / Batch loss {loss.item():.3f}')  #
         progress.update()
 
         gc.collect()
@@ -85,7 +94,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
     n_batches = len(test_loader)
     max_epoch = args.n_epochs
     device = next(net.parameters()).device
-
+    criterion = BCEWithLogitsLoss2d().to(device)
     probs_lst = []
     ground_truth_list = []
 
@@ -98,18 +107,18 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
     with torch.no_grad():
         for i, batch in enumerate(test_loader):
             images = batch['image'].to(device)
-            labels = batch['label'].long().to(device)
+            labels = batch['label'].to(device)
 
             outputs = net(images)
 
             # Cross entropy loss model output vs actual labels for batch
             # Forwards feed
-            loss = criterion(outputs, labels)
+
+            loss = criterion(outputs, labels.float())
 
             # Squish the output values to a probability range between 0 and 1
             # In our case because there are only 2 classes..
-            probs_batch = F.softmax(outputs, 1).data.to('cpu').numpy()
-
+            probs_batch = F.sigmoid(outputs).data.to('cpu').numpy()
             ground_truth_batch = batch['label'].numpy()
 
             probs_lst.extend(probs_batch.tolist())
@@ -127,7 +136,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
             all_samples += len(np.array(ground_truth_list))
 
             progress.set_description(
-                f'[{epoch + 1} | {max_epoch}] Validation accuracy: {100. * correct / all_samples:.0f}%')
+                f'[{epoch + 1} | {max_epoch+1}] Validation accuracy: {100. * correct / all_samples:.0f}%')
             progress.update()
 
             gc.collect()
@@ -135,7 +144,9 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
         progress.close()
 
-    return running_loss / n_batches, np.array(probs_lst), np.array(ground_truth_list), correct / all_samples, confusion_matrix
+    return running_loss / n_batches, np.array(probs_lst), np.array(
+        ground_truth_list), correct / all_samples, confusion_matrix
+
 
 def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
     """Calculate confusion matrix from arrays
@@ -162,3 +173,18 @@ def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
     confusion_matrix = confusion_matrix.astype(np.uint64)
 
     return confusion_matrix
+
+class BCEWithLogitsLoss2d(nn.Module):
+    """Computationally stable version of 2D BCE loss
+
+    """
+
+    def __init__(self):
+        super(BCEWithLogitsLoss2d, self).__init__()
+
+        self.bce_loss = nn.BCEWithLogitsLoss(None, reduction='mean')
+
+    def forward(self, logits, targets):
+        logits_flat = logits.view(-1)
+        targets_flat = targets.view(-1)
+        return self.bce_loss(logits_flat, targets_flat)
