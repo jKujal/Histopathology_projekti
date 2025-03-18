@@ -6,22 +6,24 @@ from Components.analytics import plots
 
 
 
-def logging(args, logs_path, results_list, train_loss, val_loss, epoch, fold_id, spsht_index):
+def logging(args, logs_path, results_list, train_loss, val_loss, acc_list, epoch, fold_id, name):
 
-    if epoch % 5 == 0 and epoch != 0:
+    if epoch % 5 == 0 and epoch > 1:
 
-        if not os.path.exists(os.path.join(logs_path, "Plots")):
-            os.makedirs(os.path.join(logs_path, "Plots"))
+        if not os.path.exists(os.path.join(logs_path, "Figures")):
+            os.makedirs(os.path.join(logs_path, "Figures"))
 
-        plots.create_loss_plot(train_loss, val_loss, os.path.join(logs_path, "Plots"), epoch, fold_id, spsht_index, save=False, show=True)
+        if epoch == args.n_epochs - 1:
 
-    elif epoch == args.n_epochs - 1:
+            if not os.path.exists(os.path.join(logs_path, "Figures")):
+                os.makedirs(os.path.join(logs_path, "Figures"))
 
-        if not os.path.exists(os.path.join(logs_path, "Results")):
-            os.makedirs(os.path.join(logs_path, "Results"))
+            results = pd.DataFrame(results_list)
+            results.to_csv(os.path.join(logs_path, f"{name}_results_fold{fold_id}_epoch{epoch}.csv"), index=False)
 
-        results = pd.DataFrame(results_list)
-        results.to_csv(os.path.join(logs_path, "Results", f"Results_fold{fold_id}_epoch{epoch}_snapshot{spsht_index}"), index=False)
+            plots.create_loss_plot(train_loss, val_loss, logs_path, fold_id, epoch, name, save=True, show=False)
+            plots.create_acc_plot(logs_path, name, fold_id, epoch, acc_list, save=True, show=False)
+        else:
 
-        plots.create_loss_plot(train_loss, val_loss, logs_path, fold_id, epoch, spsht_index, save=True, show=True)
-
+            plots.create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, name, save=True, show=False)
+            plots.create_acc_plot(logs_path, name, fold_id, epoch, acc_list, save=True, show=False)
