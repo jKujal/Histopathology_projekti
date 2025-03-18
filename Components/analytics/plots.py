@@ -16,7 +16,7 @@ def create_confusion_matrix(ground_truth, predictions, log_path, nth_split):
     plt.show()
 
 
-def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, index, save=False, show=False):
+def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, name, save=False, show=False):
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
     plt.plot(train_loss, linestyle='solid', label="Training loss")
@@ -27,13 +27,13 @@ def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, index, sav
     plt.title("Training vs. Validation loss")
     plt.legend()
     if save:
-        plt.savefig(os.path.join(logs_path, f"loss_plot_foldid{fold_id}_epoch{epoch}_snapshot{index}"))
+        plt.savefig(os.path.join(logs_path, "Figures", f"{name}_loss_foldid{fold_id}_epoch{epoch}"))
     if show:
         plt.show(block=False)
-        plt.pause(15)
+        plt.pause(8)
         plt.close()
 
-def combined_plot(logs_path):
+def combined_plot(logs_path, spsht_index):
 
     plot_data = []
     for file in os.listdir(logs_path):
@@ -53,7 +53,23 @@ def combined_plot(logs_path):
     plt.title('Combined Training vs. Validation loss')
     plt.legend()
 
-    plt.savefig()
+    plt.savefig(os.path.join(logs_path, "Figures", f"folds_losses_snapshot{spsht_index}"))
     plt.show(block=False)
     plt.pause(15)
     plt.close(0)
+
+def create_acc_plot(logs_path, name, foldid, epoch, acc_list, save=False, show=False):
+
+    plt.style.use('dark_background')
+    plt.figure(figsize=(10, 5))
+    plt.plot(acc_list)
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.autoscale(enable=True, axis='Both')
+    plt.title('Accuracy on validation dataset')
+    if save:
+        plt.savefig(os.path.join(logs_path, "Figures", f"{name}_accuracy_fold{foldid}_epoch{epoch}"))
+    if show:
+        plt.show(block=False)
+        plt.pause(5)
+        plt.close(0)
