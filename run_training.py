@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
 from Components.data_processing import dataset_splits, histodatahandler
 from Components.analytics import metrics
-from Components.data_processing.dataset_splits import initiate_gfk_splits, init_folds, init_loaders, split_train_holdout
+from Components.data_processing.dataset_splits import initiate_sgkf_splits, init_folds, init_loaders, split_train_holdout
 from Components.training import arguments, utilities
 from torchinfo import summary
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     metadata = pd.read_csv(data_file_path)
 
     train_metadata = split_train_holdout(args, metadata, os.path.join(logs_path, "Data"), dataset="histo")
-    cv_splits = initiate_gfk_splits(args, train_metadata)
+    cv_splits = initiate_sgkf_splits(args, train_metadata)
     cv_split_train_val = init_folds(args, cv_splits)
 
 

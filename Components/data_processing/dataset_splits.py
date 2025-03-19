@@ -58,10 +58,7 @@ def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
     gss_split = gss.split(metadata, metadata.ID, metadata.FolderID)
 
     split = [x for x in gss_split]
-    # same as ↓
-    # cv_split = []
-    # for x in gfk_split:
-    #     cv_split.append(x)
+
     training_idx = split[0][0]
     holdout_idx = split[0][1]
 
@@ -73,14 +70,14 @@ def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
 
     return split
 
-def initiate_gfk_splits(args, metadata):
+def initiate_sgkf_splits(args, metadata):
 
-    gfk = StratifiedGroupKFold(n_splits=args.k_folds)
+    sgkf = StratifiedGroupKFold(n_splits=args.k_folds)
 
     y = concatenate_column_values(dframe=metadata, cols=['FolderID'])
-    gfk_split = gfk.split(metadata, y=y, groups=metadata.FolderID.astype(str))
+    sgkf_split = sgkf.split(metadata, y=y, groups=metadata.FolderID.astype(str))
 
-    cv_split = [x for x in gfk_split]
+    cv_split = [x for x in sgkf_split]
 
     return cv_split
 
@@ -89,7 +86,7 @@ def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
 
     if args.subsample:
         metadata = metadata.groupby('Class').apply(
-            lambda x: x.sample(frac=0.05)
+            lambda x: x.sample(frac=0.005)
         )
 
     gss = GroupShuffleSplit(n_splits=args.n_splits, test_size=0.2, train_size=0.8, random_state=args.seed)
