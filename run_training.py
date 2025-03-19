@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
             for epoch in range(args.n_epochs+1):
 
-                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch)
+                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id)
                 validation_loss, predictions, ground_truth, accuracy, confusion_matrix = utilities.validate_epoch(net,
                                                                                                                   val_loader,
                                                                                                                   criterion,
