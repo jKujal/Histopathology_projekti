@@ -2,6 +2,7 @@ import gc
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pathlib import Path
 from torch import nn
 from torch import optim
 from torchvision.models import vgg16_bn
@@ -36,7 +37,7 @@ def init_model(args, classes=10):
 
 
 def init_loss():
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss
 
     return criterion
 
@@ -50,7 +51,7 @@ def init_optimizer(args, parameters):
         raise NotImplementedError
 
 
-def train_epoch(args, net, optimizer, train_loader, criterion, epoch):
+def train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id):
     net.train(True)
     running_loss = 0.0
 
@@ -59,25 +60,25 @@ def train_epoch(args, net, optimizer, train_loader, criterion, epoch):
 
     # Grab "next" iterable from..
     device = next(net.parameters()).device
-    criterion = BCEWithLogitsLoss2d().to(device)
 
     progress = tqdm(total=n_batches)
     for i, batch in enumerate(train_loader):
         images = batch['image'].to(device)
         labels = batch['label'].to(device)
+        # path = Path(batch['image_path'][0]).stem
 
         optimizer.zero_grad()
 
         # Forwards feed
         outputs = net(images)  #
-        loss = criterion(outputs, labels.float())  # CrossEntropyLoss
+        loss = criterion()(outputs.squeeze(), labels.float())
 
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
 
         progress.set_description(
-            f'[{epoch + 1} | {max_epochs+1}] Average train loss: {running_loss / (i + 1):.3f} / Batch loss {loss.item():.3f}')  #
+            f'Fold {fold_id}, [{epoch + 1} | {max_epochs+1}] Average train loss: {running_loss / (i + 1):.3f} / Batch loss {loss.item():.3f}')  #
         progress.update()
 
         gc.collect()
@@ -94,8 +95,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
     n_batches = len(test_loader)
     max_epoch = args.n_epochs
     device = next(net.parameters()).device
-    criterion = BCEWithLogitsLoss2d().to(device)
-    probs_lst = []
+    predictions_list = []
     ground_truth_list = []
 
     progress = tqdm(total=n_batches)
@@ -108,35 +108,29 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
         for i, batch in enumerate(test_loader):
             images = batch['image'].to(device)
             labels = batch['label'].to(device)
-
             outputs = net(images)
 
-            # Cross entropy loss model output vs actual labels for batch
-            # Forwards feed
+            loss = criterion()(outputs.squeeze(), labels.float())
 
-            loss = criterion(outputs, labels.float())
-
-            # Squish the output values to a probability range between 0 and 1
-            # In our case because there are only 2 classes..
             probs_batch = F.sigmoid(outputs).data.to('cpu').numpy()
+            predictions = (probs_batch > 0.5).astype(int)
+            predictions = np.array([item[0] for item in predictions])
             ground_truth_batch = batch['label'].numpy()
 
-            probs_lst.extend(probs_batch.tolist())
+            predictions_list.extend(predictions.tolist())
             ground_truth_list.extend(ground_truth_batch.tolist())
 
             running_loss += loss.item()
 
-            # Get the predicted class, which is the one with the highest probability, the maximum value
-            predictions = np.array(probs_lst).argmax(1)
             # Compare predicted labels to the actual true labels, and calculate correct=True predictions
-            correct += np.equal(predictions, np.array(ground_truth_list)).sum()
+            correct += np.equal(predictions_list, ground_truth_list).sum()
 
-            confusion_matrix += calculate_confusion_matrix_from_arrays(predictions, np.array(ground_truth_list), 2)
+            confusion_matrix += calculate_confusion_matrix_from_arrays(np.array(predictions_list), np.array(ground_truth_list), 2)
 
             all_samples += len(np.array(ground_truth_list))
 
             progress.set_description(
-                f'[{epoch + 1} | {max_epoch+1}] Validation accuracy: {100. * correct / all_samples:.0f}%')
+                f'[{epoch + 1} | {max_epoch+1}] Validation accuracy: {100. * correct / all_samples:.04f}%')
             progress.update()
 
             gc.collect()
@@ -144,7 +138,7 @@ def validate_epoch(net, test_loader, criterion, args, epoch):
 
         progress.close()
 
-    return running_loss / n_batches, np.array(probs_lst), np.array(
+    return running_loss / n_batches, np.array(predictions_list), np.array(
         ground_truth_list), correct / all_samples, confusion_matrix
 
 
