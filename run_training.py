@@ -6,15 +6,15 @@ import random
 import cv2
 import pandas as pd
 import torch
+import json
 import numpy as np
-import torch.nn as nn
 from datetime import datetime
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix as c_matrix
 from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
 from Components.data_processing import dataset_splits, histodatahandler
 from Components.analytics import metrics
-from Components.data_processing.dataset_splits import initiate_sgkf_splits, init_folds, init_loaders, split_train_holdout
+from Components.data_processing.dataset_splits import initiate_sgkf_splits, init_loaders, split_train_holdout
 from Components.training import arguments, utilities
 from torchinfo import summary
 
@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 if __name__ == "__main__":
 
-    start_time = time.strftime('%Y_%m_%d_%H_%M')
+    start_time = time.strftime('%Y_%m_%d_%H_%M_%S')
 
     args = arguments.parse_args()
 
@@ -37,19 +37,22 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(args.seed)
 
     data_file_path = histodatahandler.create_histo_data()
-    snapshot_name = time.strftime('%Y_%m_%d_%H_%M')
+    snapshot_name = time.strftime('%Y_%m_%d_%H_%M_%S') + f"_{args.optimizer}_epochs{args.n_epochs}_lr{args.lr}_lr_drop{str(args.lr_drop)}"
     logs_path = os.path.join("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo", "Logs", snapshot_name)
     os.makedirs(os.path.join(logs_path), exist_ok=True)
 
     metadata = pd.read_csv(data_file_path)
+    metadata_dir = os.path.join(logs_path, "Data")
+    os.makedirs(metadata_dir, exist_ok=True)
 
-    train_metadata = split_train_holdout(args, metadata, os.path.join(logs_path, "Data"), dataset="histo")
+    #Save args
+    args_dir = os.path.join(metadata_dir,'training_arguments.txt')
+    with open(args_dir, 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
+
+    train_metadata = split_train_holdout(args, metadata, metadata_dir, dataset="histo")
+
     cv_splits = initiate_sgkf_splits(args, train_metadata)
-    cv_split_train_val = init_folds(args, cv_splits)
-
-
-    net = utilities.init_model(args, 2)
-    optimizer = utilities.init_optimizer(args, net.parameters())
 
     # # Show structure and forward feed shapes
     # summary(net, input_size=(args.batch_size, 3, 50, 50),
@@ -63,14 +66,10 @@ if __name__ == "__main__":
 
     for index, name in enumerate(runs):
 
-        for fold_id in cv_split_train_val:
+        for fold_id, content in enumerate(cv_splits):
 
-            net = utilities.init_model(args, classes=1)
+            net = utilities.init_model(args, classes=1, TSNE=False)
             optimizer = utilities.init_optimizer(args, net.parameters())
-
-            if args.optimizer == 'sgd':
-                scheduler = MultiStepLR(optimizer, milestones=args.lr_drop,
-                                        gamma=args.learning_rate_decay)  # No need with adam(?)
 
             if name == 'Pretrained':
                 net_state_dict = torch.load(args.pretrained_model_params_dir, map_location='cpu', weights_only=False)
@@ -78,9 +77,20 @@ if __name__ == "__main__":
 
                 net.load_state_dict(net_state, strict=False)
 
-            train_index, val_index = cv_split_train_val[fold_id]
-            train_loader, val_loader = init_loaders(args, train_split=metadata.iloc[train_index],
-                                                    val_split=metadata.iloc[val_index])
+                if args.optimizer == 'sgd':
+                    scheduler = MultiStepLR(optimizer, milestones=args.lr_drop,
+                                            gamma=args.learning_rate_decay)
+            else:
+                if args.optimizer == 'sgd':
+                    scheduler = MultiStepLR(optimizer, milestones=args.untrained_lr_drop,
+                                            gamma=args.learning_rate_decay)
+
+            train_index= content[0]
+            val_index = content[1]
+            train_data = train_metadata.iloc[train_index]
+            val_data = train_metadata.iloc[val_index]
+            train_loader, val_loader = init_loaders(args, train_split=train_data,
+                                                    val_split=val_data)
 
             results_list = []
             train_list = []
@@ -90,17 +100,13 @@ if __name__ == "__main__":
 
             for epoch in range(args.n_epochs+1):
 
-                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id)
-                validation_loss, predictions, ground_truth, accuracy, confusion_matrix = utilities.validate_epoch(net,
-                                                                                                                  val_loader,
-                                                                                                                  criterion,
-                                                                                                                  args,
-                                                                                                                  epoch)
-
+                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id, name)
+                validation_loss, predictions, ground_truth, accuracy = utilities.validate_epoch(net, val_loader, criterion, args, epoch)
+                confusion_matrix = c_matrix(ground_truth, predictions)
                 results_list.append(
                     {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth,
                      "predictions": predictions, "Epoch": epoch, "Fold_id": fold_id, "TP": confusion_matrix[0, 0],
-                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0]})
+                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix})
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
                 acc_list.append(accuracy)
@@ -125,9 +131,9 @@ if __name__ == "__main__":
 
         del net
 
-    end_time = time.strftime('%Y_%m_%d_%H_%M')
-    start_time = datetime.strptime(start_time, '%Y_%m_%d_%H_%M')
-    end_time = datetime.strptime(end_time, '%Y_%m_%d_%H_%M')
+    end_time = time.strftime('%Y_%m_%d_%H_%M_%S')
+    start_time = datetime.strptime(start_time, '%Y_%m_%d_%H_%M_%S')
+    end_time = datetime.strptime(end_time, '%Y_%m_%d_%H_%M_%S')
     duration = end_time - start_time
     print(f"Training ended after {duration}.")
 
