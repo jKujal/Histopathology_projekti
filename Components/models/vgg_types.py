@@ -9,8 +9,9 @@ class VGGBNDrop(nn.Module):
     https://github.com/szagoruyko/cifar.torch/blob/master/models/vgg_bn_drop.lua
 
     """
-    def __init__(self, num_classes, init_weights=True):
+    def __init__(self, num_classes, init_weights=True, TSNE=False):
         super(VGGBNDrop, self).__init__()
+        self.TSNE = TSNE
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1, stride=1, bias=False),
             nn.BatchNorm2d(64),
@@ -54,37 +55,37 @@ class VGGBNDrop(nn.Module):
 
             nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),  # vgg:add(MaxPooling(2,2,2,2):ceil())
 
-            nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
             nn.Dropout(0.4),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
             nn.Dropout(0.4),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
             nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),  # vgg:add(MaxPooling(2,2,2,2):ceil())
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
             nn.Dropout(0.4),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
             nn.Dropout(0.4),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
@@ -112,9 +113,12 @@ class VGGBNDrop(nn.Module):
                 m.bias.data.zero_()  # v.bias: zero()
 
     def forward(self, x):
+
         x = self.features(x)
         x = F.adaptive_avg_pool2d(x, (1, 1))
         x = torch.flatten(x, 1)
+        if self.TSNE:
+            return x
         x = self.classifier(x)
         return x
 
