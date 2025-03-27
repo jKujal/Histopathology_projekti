@@ -16,7 +16,7 @@ def create_confusion_matrix(ground_truth, predictions, log_path, nth_split):
     plt.show()
 
 
-def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, name, save=False, show=False):
+def create_loss_plot(args, train_loss, val_loss, logs_path, fold_id, epoch, name, save=False, show=False):
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
     plt.plot(train_loss, linestyle='solid', label="Training loss")
@@ -24,7 +24,7 @@ def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, name, save
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.autoscale(enable=True, axis="Both")
-    plt.title("Training vs. Validation loss")
+    plt.title(f"{name}, Training vs. Validation loss, lr: {args.lr}, optimizer: {args.optimizer}")
     plt.legend()
     if save:
         plt.savefig(os.path.join(logs_path, "Figures", f"{name}_loss_foldid{fold_id}_epoch{epoch}"))
@@ -32,6 +32,23 @@ def create_loss_plot(train_loss, val_loss, logs_path, epoch, fold_id, name, save
         plt.show(block=False)
         plt.pause(8)
         plt.close()
+
+
+def create_acc_plot(args, logs_path, name, foldid, epoch, acc_list, save=False, show=False):
+
+    plt.style.use('dark_background')
+    plt.figure(figsize=(10, 5))
+    plt.plot(acc_list)
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.autoscale(enable=True, axis='Both')
+    plt.title(f'{name}, Accuracy on validation dataset, lr: {args.lr}, optimizer: {args.optimizer}')
+    if save:
+        plt.savefig(os.path.join(logs_path, "Figures", f"{name}_accuracy_fold{foldid}_epoch{epoch}"))
+    if show:
+        plt.show(block=False)
+        plt.pause(5)
+        plt.close(0)
 
 def combined_plot(logs_path, spsht_index):
 
@@ -57,19 +74,3 @@ def combined_plot(logs_path, spsht_index):
     plt.show(block=False)
     plt.pause(15)
     plt.close(0)
-
-def create_acc_plot(logs_path, name, foldid, epoch, acc_list, save=False, show=False):
-
-    plt.style.use('dark_background')
-    plt.figure(figsize=(10, 5))
-    plt.plot(acc_list)
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.autoscale(enable=True, axis='Both')
-    plt.title('Accuracy on validation dataset')
-    if save:
-        plt.savefig(os.path.join(logs_path, "Figures", f"{name}_accuracy_fold{foldid}_epoch{epoch}"))
-    if show:
-        plt.show(block=False)
-        plt.pause(5)
-        plt.close(0)
