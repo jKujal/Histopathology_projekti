@@ -26,6 +26,7 @@ def create_histo_data():
     histo_csv_path = os.path.join(histo_data_folder, "All_histo_data")
 
     if os.path.exists(Path(histo_csv_path)):
+        preprocess_data(histo_csv_path)
         return histo_csv_path
     else:
 
