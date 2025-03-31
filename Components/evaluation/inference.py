@@ -102,7 +102,7 @@ def run_inference(args_path, holdout_set, saved_state, show=False):
 
     f1 = running_f1/ i
     accuracy = 100. * (correct / all_samples)
-    confusion_matrix = c_matrix(ground_truth, predictions, labels=None)
+    confusion_matrix = c_matrix(ground_truth, predictions, labels=[0, 1])
     TP = confusion_matrix[0, 0]
     TN = confusion_matrix[1, 1]
     FN = confusion_matrix[0, 1]
