@@ -41,13 +41,6 @@ def init_model(args, classes=10, TSNE=False):
         net = net.to('cuda:0')
         return net
 
-
-def init_loss():
-    criterion = nn.BCEWithLogitsLoss()
-
-    return criterion
-
-
 def init_optimizer(args, parameters):
     if args.optimizer == 'adam':
         return optim.Adam(parameters, lr=args.lr, weight_decay=args.wd)
@@ -57,8 +50,9 @@ def init_optimizer(args, parameters):
         raise NotImplementedError
 
 
-def train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id, name):
+def train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name):
     net.train(True)
+
     running_loss = 0.0
 
     n_batches = train_loader.batch_size
@@ -74,10 +68,11 @@ def train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id, n
         images = batch['image'].to(device).float()
         labels = batch['label'].to(device)
         # path = Path(batch['image_path'][0]).stem
-
         # Forwards feed
         outputs = net(images)
-        loss = criterion(outputs.squeeze(), labels.float())
+
+        pos_weight = torch.tensor(labels.shape) * 2.5
+        loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))(outputs.squeeze(), labels.float())
 
         loss.backward()
         optimizer.step()
@@ -95,7 +90,7 @@ def train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id, n
     return running_loss / n_batches
 
 
-def validate_epoch(net, val_loader, criterion, args, epoch):
+def validate_epoch(net, val_loader, args, epoch):
     net.eval()
     running_loss = 0.0
     n_batches = val_loader.batch_size
@@ -115,8 +110,8 @@ def validate_epoch(net, val_loader, criterion, args, epoch):
             labels = batch['label'].to(device)
             path = batch['image_path']
             outputs = net(images)
-
-            loss = criterion(outputs.squeeze(), labels.float())
+            pos_weight = torch.tensor(labels.shape) * 2.5
+            loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))(outputs.squeeze(), labels.float())
 
             # if DEBUG:
             #     axes = plt.subplot(2, int(n_batches / 2), 1)
@@ -140,7 +135,7 @@ def validate_epoch(net, val_loader, criterion, args, epoch):
             running_f1 += f1
             running_loss += loss.item()
 
-            confusion_matrix = c_matrix(np.array(ground_truth_list), np.array(predictions_list))
+            confusion_matrix = c_matrix(np.array(ground_truth_list), np.array(predictions_list), labels=[0, 1])
             TP = confusion_matrix[0, 0]
             TN = confusion_matrix[1, 1]
             FN = confusion_matrix[0, 1]

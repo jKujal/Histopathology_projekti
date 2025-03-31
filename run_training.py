@@ -96,12 +96,11 @@ if __name__ == "__main__":
             train_list = []
             val_list = []
             acc_list = []
-            criterion = utilities.init_loss()
 
             for epoch in range(args.n_epochs+1):
 
-                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, criterion, epoch, fold_id, name)
-                validation_loss, predictions, ground_truth, accuracy = utilities.validate_epoch(net, val_loader, criterion, args, epoch)
+                train_loss = utilities.train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name)
+                validation_loss, predictions, ground_truth, accuracy = utilities.validate_epoch(net, val_loader, args, epoch)
                 confusion_matrix = c_matrix(ground_truth, predictions)
                 results_list.append(
                     {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth,
@@ -121,15 +120,14 @@ if __name__ == "__main__":
                     scheduler.step()
                 gc.collect()
 
-        state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
-        cur_snapshot_name = os.path.join(logs_path, args.model + "_" + args.optimizer + "_" + f"weights_{name}" + ".pth")
-        print(cur_snapshot_name)
-        torch.save(state, cur_snapshot_name)
+            state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
+            cur_snapshot_name = os.path.join(logs_path, args.model + "_" + args.optimizer + "_" + f"{name}_weights_fold{fold_id}" + ".pth")
+            torch.save(state, cur_snapshot_name)
 
-        torch.cuda.empty_cache()
-        gc.collect()
+            torch.cuda.empty_cache()
+            gc.collect()
 
-        del net
+            del net
 
     end_time = time.strftime('%Y_%m_%d_%H_%M_%S')
     start_time = datetime.strptime(start_time, '%Y_%m_%d_%H_%M_%S')
