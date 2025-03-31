@@ -50,23 +50,6 @@ def concatenate_column_values(dframe, cols):
     return pd.Series(map(''.join, dframe[cols].values.astype(str).tolist()), index=dframe.index)
 
 
-def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
-    gss = GroupShuffleSplit(n_splits=1, test_size=0.2, train_size=0.8, random_state=args.seed)
-    gss_split = gss.split(metadata, metadata.ID, metadata.FolderID)
-
-    split = [x for x in gss_split]
-
-    training_idx = split[0][0]
-    holdout_idx = split[0][1]
-
-    train_metadata = metadata.iloc[training_idx]
-    holdout_metadata = metadata.iloc[holdout_idx]
-
-    train_metadata.to_csv(f'{metadata_folder}/{dataset}_train_metadata.csv', index=None)
-    holdout_metadata.to_csv(f'{metadata_folder}/{dataset}_holdout_metadata.csv', index=None)
-
-    return split
-
 def initiate_sgkf_splits(args, metadata):
 
     sgkf = StratifiedGroupKFold(n_splits=args.k_folds)
@@ -126,8 +109,8 @@ def init_loaders(args, train_split, val_split):
         val_dataset = ImageDataset(dataset=val_split)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_threads, drop_last=True,
-                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)), pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads, pin_memory=True)
+                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)))
+    val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads)
 
     return train_loader, val_loader
 
