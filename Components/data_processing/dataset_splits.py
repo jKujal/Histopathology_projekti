@@ -34,7 +34,9 @@ class ImageDataset(Dataset):
 
             dc_res = self.transforms({'image': image}, return_torch=False)
 
-            transformed_img = dc_res.data[0].transpose((2, 0, 1))
+            transformed_img = dc_res.data[0].transpose((2, 0, 1)) / 255.0
+            transformed_img = torch.from_numpy(transformed_img)
+            transformed_img = tv_transforms.Normalize(mean=[0.73341537, 0.6338761, 0.8134402], std=[0.15178116, 0.21050893, 0.14175205] )(transformed_img.float())
 
             return {'image': transformed_img, 'label': label, 'image_path': image_path}
         else:
@@ -166,13 +168,14 @@ def init_loaders(args, train_split, val_split):
 def init_transformations(args):
 
     #args here if you want to alter these.
-    rotation_range = (-25, 25)
-    translation_range = 20
+    # rotation_range = (-90, 90)
+    # translation_range = 20
 
     train_trsf = slc.Stream([
-        slt.Flip(p=0.25, axis=-1),
-        slt.Rotate(angle_range=(rotation_range[0], rotation_range[1]), p=0.25),
-        slt.Translate(range_x=translation_range, range_y=translation_range, p=0.1),
+        slt.Flip(p=0.25, axis=-1), # axis -1 means all axes
+        slt.Rotate90(k=1, p=0.25),
+        # slt.Rotate(angle_range=(rotation_range[0], rotation_range[1]), p=0.25),
+        # slt.Translate(range_x=translation_range, range_y=translation_range, p=0.1),
         # slt.Noise(p=0.25, gain_range=0.1, data_indices=None),
         slt.Pad(pad_to=(50, 50), padding='r'),
         slt.Crop(crop_mode='r', crop_to=(50, 50)),
