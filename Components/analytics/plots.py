@@ -19,8 +19,8 @@ def create_confusion_matrix(ground_truth, predictions, log_path, nth_split):
 def create_loss_plot(args, train_loss, val_loss, logs_path, fold_id, epoch, name, save=False, show=False):
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
-    plt.plot(train_loss, linestyle='solid', label="Training loss")
-    plt.plot(val_loss, linestyle='solid', label="Validation loss")
+    plt.plot(train_loss[1:], linestyle='solid', label="Training loss")
+    plt.plot(val_loss[1:], linestyle='solid', label="Validation loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.autoscale(enable=True, axis="Both")
@@ -38,7 +38,7 @@ def create_acc_plot(args, logs_path, name, foldid, epoch, acc_list, save=False, 
 
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
-    plt.plot(acc_list)
+    plt.plot(acc_list[1:])
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.autoscale(enable=True, axis='Both')

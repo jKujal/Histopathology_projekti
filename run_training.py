@@ -14,7 +14,8 @@ from torch.optim.lr_scheduler import MultiStepLR
 from tabulate import tabulate
 from Components.data_processing import dataset_splits, histodatahandler
 from Components.analytics import metrics
-from Components.data_processing.dataset_splits import initiate_sgkf_splits, init_loaders, split_train_holdout
+from Components.data_processing.dataset_splits import initiate_sgkf_splits, init_loaders, split_train_holdout, \
+    equal_sample
 from Components.training import arguments, utilities
 from torchinfo import summary
 
@@ -50,7 +51,9 @@ if __name__ == "__main__":
     with open(args_dir, 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-    train_metadata = split_train_holdout(args, metadata, metadata_dir, dataset="histo")
+    train_metadata = equal_sample(args, metadata, metadata_dir)
+
+    # train_metadata = split_train_holdout(args, metadata, metadata_dir, dataset="histo")
 
     cv_splits = initiate_sgkf_splits(args, train_metadata)
 
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     #         col_names=['input_size', 'output_size', 'kernel_size', 'trainable'])
 
     # Setup confusion matrix fancy print
-    labels = ["True", "False"]
+    labels = ["0", "1"]
     headers = [""] + labels
 
     runs = ['Untrained', 'Pretrained']
@@ -82,13 +85,16 @@ if __name__ == "__main__":
                                             gamma=args.learning_rate_decay)
             else:
                 if args.optimizer == 'sgd':
-                    scheduler = MultiStepLR(optimizer, milestones=args.untrained_lr_drop,
+                    scheduler = MultiStepLR(optimizer, milestones=args.untrained_lr_drop, # Huom _un_trained
                                             gamma=args.learning_rate_decay)
 
             train_index= content[0]
             val_index = content[1]
             train_data = train_metadata.iloc[train_index]
             val_data = train_metadata.iloc[val_index]
+            fold_train_save = train_data.to_csv(os.path.join(metadata_dir, f"fold{fold_id}_training_data.csv"))
+            fold_val_save = val_data.to_csv(os.path.join(metadata_dir, f"fold{fold_id}_val_data.csv"))
+
             train_loader, val_loader = init_loaders(args, train_split=train_data,
                                                     val_split=val_data)
 
@@ -100,10 +106,10 @@ if __name__ == "__main__":
             for epoch in range(args.n_epochs+1):
 
                 train_loss = utilities.train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name)
-                validation_loss, predictions, ground_truth, accuracy = utilities.validate_epoch(net, val_loader, args, epoch)
+                validation_loss, predictions, ground_truth, accuracy, probs = utilities.validate_epoch(net, val_loader, args, epoch)
                 confusion_matrix = c_matrix(ground_truth, predictions)
                 results_list.append(
-                    {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth,
+                    {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth, "Probs_min": np.min(probs), "Probs_max": np.max(probs),
                      "predictions": predictions, "Epoch": epoch, "Fold_id": fold_id, "TP": confusion_matrix[0, 0],
                      "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix})
                 train_list.append(train_loss)

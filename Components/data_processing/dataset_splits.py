@@ -1,20 +1,20 @@
 import numpy as np
 import pandas as pd
+import solt.constants
 import torch
 import solt.core as slc
 import solt.transforms as slt
 import cv2
 import os
-from sklearn.model_selection import StratifiedGroupKFold, StratifiedShuffleSplit, GroupShuffleSplit
+import matplotlib.pyplot as plt
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedShuffleSplit, GroupShuffleSplit, train_test_split
 from torch.utils.data import Dataset, DataLoader
-
-from Components.data_processing import transformations
-
+from torchvision import transforms as tv_transforms
 
 class ImageDataset(Dataset):
     def __init__(self, dataset, transforms=None):
         self.dataset = dataset
-        self.transform = transforms
+        self.transforms = transforms
 
     def __len__(self):
         return len(self.dataset)
@@ -30,9 +30,13 @@ class ImageDataset(Dataset):
         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         image = image.astype('uint8')
 
-        if self.transform:
-            image = self.transform(image)
-            return ""
+        if self.transforms is not None:
+
+            dc_res = self.transforms({'image': image}, return_torch=False)
+
+            transformed_img = dc_res.data[0].transpose((2, 0, 1))
+
+            return {'image': transformed_img, 'label': label, 'image_path': image_path}
         else:
             image = np.array(image)
             image = image.transpose((2, 0, 1)) # numpy image: H x W x C, torch image: C x H x W
@@ -55,18 +59,44 @@ def initiate_sgkf_splits(args, metadata):
     sgkf = StratifiedGroupKFold(n_splits=args.k_folds)
 
     y = concatenate_column_values(dframe=metadata, cols=['Class'])
-    sgkf_split = sgkf.split(metadata, y=y, groups=metadata.FolderID.astype(str))
+    sgkf_split = sgkf.split(metadata, y=metadata['Class'], groups=metadata.FolderID.astype(str))
 
     cv_split = [x for x in sgkf_split]
 
     return cv_split
 
 
+def equal_sample(args, metadata, metadata_folder):
+
+    cancer = metadata[metadata['Class'] == 1]
+    not_cancer = metadata[metadata['Class'] == 0]
+
+    sampled_cancer = cancer.sample(n=10000, random_state=args.seed)
+    sampled_not_cancer = not_cancer.sample(n=10000, random_state=args.seed)
+
+    metadata = pd.concat([sampled_cancer, sampled_not_cancer])
+
+    gss = GroupShuffleSplit(n_splits=args.n_splits, test_size=0.2, train_size=0.8, random_state=args.seed)
+    gss_split = gss.split(metadata, metadata.Class, metadata.FolderID)
+
+    split = [x for x in gss_split]
+
+    training_index = split[0][0]
+    holdout_index = split[0][1]
+
+    train_metadata = metadata.iloc[training_index]
+    holdout_metadata = metadata.iloc[holdout_index]
+
+    train_metadata.to_csv(os.path.join(metadata_folder, "histo_train_metadata.csv"), index=None)
+    holdout_metadata.to_csv(os.path.join(metadata_folder, "histo_holdout_metadata.csv"), index=None)
+
+    return train_metadata
+
 def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
 
     if args.subsample:
         metadata = metadata.groupby('Class').apply(
-            lambda x: x.sample(frac=0.04)
+            lambda x: x.sample(frac=0.9)
         )
 
     gss = GroupShuffleSplit(n_splits=args.n_splits, test_size=0.2, train_size=0.8, random_state=args.seed)
@@ -84,6 +114,16 @@ def split_train_holdout(args, metadata, metadata_folder, dataset='histo'):
     holdout_metadata.to_csv(os.path.join(metadata_folder,f"{dataset}_holdout_metadata.csv"), index=None)
 
     return train_metadata
+
+#
+# def test_split(args, metadata, metadata_folder):
+#
+#     set = metadata.read_csv()
+#
+#
+#
+#
+#
 
 
 # def init_folds(args, cv_split):
@@ -109,18 +149,33 @@ def init_loaders(args, train_split, val_split):
         val_dataset = ImageDataset(dataset=val_split)
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_threads, drop_last=True,
-                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)))
+                              worker_init_fn=lambda wid: np.random.seed(np.uint32(torch.initial_seed() + wid)), shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.val_batch_size, num_workers=args.n_threads)
 
     return train_loader, val_loader
 
 
+# def wrap_solt(inp):
+#     """
+#
+#     :param inp:
+#     :return:
+#     """
+#     return slc.DataContainer(inp, 'IM', transform_settings={0: {'interpolation': 'bilinear'}, 1: {'interpolation': 'nearest'}})
+
 def init_transformations(args):
+
     #args here if you want to alter these.
-    rotation_range = (-5, 5)
+    rotation_range = (-25, 25)
+    translation_range = 20
+
     train_trsf = slc.Stream([
         slt.Flip(p=0.25, axis=-1),
         slt.Rotate(angle_range=(rotation_range[0], rotation_range[1]), p=0.25),
+        slt.Translate(range_x=translation_range, range_y=translation_range, p=0.1),
+        # slt.Noise(p=0.25, gain_range=0.1, data_indices=None),
+        slt.Pad(pad_to=(50, 50), padding='r'),
+        slt.Crop(crop_mode='r', crop_to=(50, 50)),
     ])
 
     return {"train": train_trsf}
