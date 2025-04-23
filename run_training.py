@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
         for fold_id, content in enumerate(cv_splits):
 
-            net = utilities.init_model(args, classes=1, TSNE=False)
+            net = utilities.init_model(args, classes=2, TSNE=False)
             optimizer = utilities.init_optimizer(args, net.parameters())
 
             if name == 'Pretrained':

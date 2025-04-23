@@ -28,7 +28,7 @@ def adjust_state_dict(state_dict, num_classes=1):
     return new_state_dict
 
 
-def init_model(args, classes=10, TSNE=False):
+def init_model(args, classes=1, TSNE=False):
     if args.model == 'vgg16':
         net = vgg16_bn(weights=False)
         num_ftrs = net.classifier[6].in_features
@@ -62,6 +62,12 @@ def init_model(args, classes=10, TSNE=False):
         net = net.to('cuda:0')
 
         return net
+    elif args.model == 'this':
+        net = torchvision.models.vgg16(pretrained=True)
+        net.classifier[6] = nn.Linear(in_features=4096, out_features=1, bias=True)
+        net = net.to('cuda:0')
+
+        return net
 
 
 def init_optimizer(args, parameters):
@@ -85,7 +91,7 @@ def train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name):
 
     # Grab "next" iterable from..
     device = next(net.parameters()).device
-    loss_function = nn.BCEWithLogitsLoss()
+    loss_function = nn.CrossEntropyLoss()
     progress = tqdm(total=len(train_loader))
 
     for i, batch in enumerate(train_loader):
@@ -95,22 +101,22 @@ def train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name):
         labels = batch['label'].to(device)
         paths = batch['image_path']
 
-        if DEBUG:
-            for i, image in enumerate(images):
-
-                fig = plt.figure()
-                img = image.cpu().permute(1,2,0).numpy()
-                plt.imshow(img)
-                plt.title(f'{Path(paths[i]).stem}')
-                plt.show(block=False)
-                plt.pause(1)
-                plt.close()
+        # if DEBUG:
+        #     for i, image in enumerate(images):
+        #
+        #         fig = plt.figure()
+        #         img = image.cpu().permute(1,2,0).numpy()
+        #         plt.imshow(img)
+        #         plt.title(f'{Path(paths[i]).stem}')
+        #         plt.show(block=False)
+        #         plt.pause(1)
+        #         plt.close()
 
         outputs = net(images.float())
 
         # pos_weight = torch.ones(labels.shape).to('cuda:0') * 1.5
         # labels.to('cuda0')
-        loss = loss_function(outputs.squeeze(), labels.float())
+        loss = loss_function(outputs.squeeze(), labels)
         # pos_weight=pos_weight.to(device)
         loss.backward()
         optimizer.step()
@@ -143,36 +149,37 @@ def validate_epoch(net, val_loader, args, epoch):
     all_samples = 0
     # running_f1 = 0.0
     f1 = 0
-    loss_function = nn.BCEWithLogitsLoss()
+    loss_function = nn.CrossEntropyLoss()
     with torch.no_grad():
         for i, batch in enumerate(val_loader):
             images = batch['image'].to(device)
             labels = batch['label'].to(device)
             paths = batch['image_path']
 
-            if DEBUG:
-                for i, image in enumerate(images):
-                    fig = plt.figure()
-                    img = image.cpu().permute(1, 2, 0).numpy()
-                    plt.imshow(img)
-                    plt.title(f'{Path(paths[i]).stem}')
-                    plt.show(block=False)
-                    # plt.pause(1)
-                    plt.close()
+            # if DEBUG:
+            #     for i, image in enumerate(images):
+            #         fig = plt.figure()
+            #         img = image.cpu().permute(1, 2, 0).numpy()
+            #         plt.imshow(img)
+            #         plt.title(f'{Path(paths[i]).stem}')
+            #         plt.show(block=False)
+            #         # plt.pause(1)
+            #         plt.close()
 
             outputs = net(images.float())
 
             # pos_weight = torch.ones(labels.shape).to('cuda:0') * 1.5
             # labels.to('cuda0')
-            loss = loss_function(outputs.squeeze(), labels.float()) #pos_weight=pos_weight.to(device)
+            loss = loss_function(outputs.squeeze(), labels) #pos_weight=pos_weight.to(device)
 
-            probs = F.sigmoid(outputs.squeeze())
-            predictions = (probs > 0.5).int().to('cpu').numpy()
+            # probs = F.sigmoid(outputs.squeeze())
+            # predictions = (probs > 0.5).int().to('cpu').numpy()
+            predictions = torch.argmax(outputs.data, 1)
 
-            predictions_list.extend(predictions.tolist())
+            predictions_list.extend(predictions.cpu())
             ground_truth_list.extend(labels.to('cpu').numpy().tolist())
 
-            running_loss += loss.item()
+            running_loss += loss.item() * images.size(0)
 
             # confusion_matrix = c_matrix(np.array(ground_truth_list), np.array(predictions_list), labels=[0, 1])
             # TP = confusion_matrix[0, 0]
@@ -185,7 +192,8 @@ def validate_epoch(net, val_loader, args, epoch):
             # f1 = 2*(recall*precision)/(recall+precision)
             # running_f1 += f1
             # Compare predicted labels to the actual true labels, and calculate correct=True predictions
-            correct = np.equal(predictions_list, ground_truth_list).sum()
+            # correct = np.equal(predictions_list, ground_truth_list).sum()
+            correct += (predictions == labels).sum().item()
 
             all_samples = len(np.array(ground_truth_list))
             if i+1 == len(val_loader):
@@ -212,4 +220,4 @@ def validate_epoch(net, val_loader, args, epoch):
         progress.close()
 
     return running_loss / n_batches, np.array(predictions_list), np.array(
-        ground_truth_list), correct / all_samples, np.array(probs.to('cpu'))
+        ground_truth_list), correct / all_samples, 0 # np.array(probs.to('cpu')
