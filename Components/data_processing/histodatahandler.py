@@ -2,6 +2,8 @@ import os
 import csv
 import cv2
 import pandas as pd
+import glob
+import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from sklearn.model_selection import StratifiedGroupKFold
@@ -75,3 +77,39 @@ def preprocess_data(csv_path):
 
     data = data.to_csv("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo/Histo_data/All_histo_data", index=False)
     return data
+
+def get_mean_std():
+
+    images_root = Path("/home/velkujal/copy_histo_images")
+    cancer_imgs = glob.glob(f"{images_root}/*/1/*.png")
+    not_cancer_imgs = glob.glob(f"{images_root}/*/0/*.png")
+    all_images = glob.glob(f"{images_root}/**/*/*.png")
+    # this = calc_mean_std(cancer_imgs, name="cancer_image_numerics")
+    # that = calc_mean_std(not_cancer_imgs, name="not_cancer_image_numerics")
+    and_this = calc_mean_std(all_images, name="all_images_numerics")
+    # print(np.load(f"{this}.npy"))
+    # print(np.load(f"{that}.npy"))
+    print(np.load(f"{and_this}.npy"))
+
+
+def calc_mean_std(paths, name=""):
+
+    channel_sum = np.zeros(3)
+    channel_sum_squared = np.zeros(3)
+    pixel_count = 0
+
+    for image in paths:
+        img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
+        pixels = np.array(img) / 255.0
+
+        channel_sum += pixels.sum(axis=(0, 1))
+        channel_sum_squared += (pixels ** 2).sum(axis=(0, 1))
+        pixel_count += pixels.shape[0] * pixels.shape[1]
+
+    mean = channel_sum / pixel_count
+    std = np.sqrt((channel_sum_squared / pixel_count) - mean ** 2)
+
+    path = os.path.join("/home/velkujal/PycharmProjects/UniProject_CV_DL_Histo/Histo_data", name)
+    np.save(path, [mean.astype(np.float32), std.astype(np.float32)])
+
+    return path
