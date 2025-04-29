@@ -13,7 +13,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix as c_matrix
 from torch import nn
 from torch import optim
-from torchvision.models import vgg16_bn, resnet34, resnet50, ResNet34_Weights, ResNet50_Weights
+from torchvision.models import vgg16_bn, resnet34, resnet50, ResNet34_Weights, ResNet50_Weights, vgg11
 from tqdm import tqdm
 from torchvision import transforms
 from Components.models import vgg_types
@@ -44,9 +44,9 @@ def init_model(args, classes=1, TSNE=False):
         net = vgg_types.VGG(num_classes=classes, init_weights=True)
         net = net.to('cuda:0')
         return net
-    elif args.model == 'test_model':
+    elif args.model == 'my_test_net':
 
-        net = vgg_types.test_model(num_classes=classes)
+        net = vgg_types.my_test_net(num_classes=classes)
         net = net.to('cuda:0')
         return net
     elif args.model == 'resnet34':
@@ -65,6 +65,12 @@ def init_model(args, classes=1, TSNE=False):
     elif args.model == 'this':
         net = torchvision.models.vgg16(pretrained=True)
         net.classifier[6] = nn.Linear(in_features=4096, out_features=1, bias=True)
+        net = net.to('cuda:0')
+
+        return net
+    elif args.model == 'vgg11':
+        net = torchvision.models.vgg11()
+        net.classifier[6] = nn.Linear(in_features=4096, out_features=2, bias=True)
         net = net.to('cuda:0')
 
         return net
@@ -138,7 +144,7 @@ def train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name):
 def validate_epoch(net, val_loader, args, epoch):
     net.eval()
     running_loss = 0.0
-    n_batches = val_loader.batch_size
+    n_batches = len(val_loader)
     device = next(net.parameters()).device
     predictions_list = []
     ground_truth_list = []
@@ -163,7 +169,7 @@ def validate_epoch(net, val_loader, args, epoch):
             #         plt.imshow(img)
             #         plt.title(f'{Path(paths[i]).stem}')
             #         plt.show(block=False)
-            #         # plt.pause(1)
+            #         plt.pause(1)
             #         plt.close()
 
             outputs = net(images.float())
@@ -174,12 +180,12 @@ def validate_epoch(net, val_loader, args, epoch):
 
             # probs = F.sigmoid(outputs.squeeze())
             # predictions = (probs > 0.5).int().to('cpu').numpy()
-            predictions = torch.argmax(outputs.data, 1)
+            _, predictions = torch.max(outputs.data, 1)
 
             predictions_list.extend(predictions.cpu())
             ground_truth_list.extend(labels.to('cpu').numpy().tolist())
 
-            running_loss += loss.item() * images.size(0)
+            running_loss += loss.item()
 
             # confusion_matrix = c_matrix(np.array(ground_truth_list), np.array(predictions_list), labels=[0, 1])
             # TP = confusion_matrix[0, 0]
@@ -208,7 +214,7 @@ def validate_epoch(net, val_loader, args, epoch):
                               zero_division='warn')
 
                 progress.set_description(
-                    f'[{epoch + 1} | {args.n_epochs+1}] Validation F1-score: {100. *(f1 / (i+1)):.03f}%, Recall: {recall:.03f}, Precision: {precision:.03f}, Accuracy: {100. * correct / all_samples:.03f}%')
+                    f'[{epoch + 1} | {args.n_epochs+1}] Validation F1-score: {100. *(f1):.03f}%, Recall: {recall:.03f}, Precision: {precision:.03f}, Accuracy: {100. * correct / all_samples:.03f}%')
                 progress.update()
             else:
                 progress.set_description(
@@ -220,4 +226,4 @@ def validate_epoch(net, val_loader, args, epoch):
         progress.close()
 
     return running_loss / n_batches, np.array(predictions_list), np.array(
-        ground_truth_list), correct / all_samples, 0 # np.array(probs.to('cpu')
+        ground_truth_list), correct / all_samples, 0, f1 # np.array(probs.to('cpu')

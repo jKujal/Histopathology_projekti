@@ -106,12 +106,12 @@ if __name__ == "__main__":
             for epoch in range(args.n_epochs+1):
 
                 train_loss = utilities.train_epoch(args, net, optimizer, train_loader, epoch, fold_id, name)
-                validation_loss, predictions, ground_truth, accuracy, probs = utilities.validate_epoch(net, val_loader, args, epoch)
+                validation_loss, predictions, ground_truth, accuracy, probs, f1 = utilities.validate_epoch(net, val_loader, args, epoch)
                 confusion_matrix = c_matrix(ground_truth, predictions)
                 results_list.append(
                     {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth, "Probs_min": np.min(probs), "Probs_max": np.max(probs),
                      "predictions": predictions, "Epoch": epoch, "Fold_id": fold_id, "TP": confusion_matrix[0, 0],
-                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix})
+                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix, "F1": f1})
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
                 acc_list.append(accuracy)

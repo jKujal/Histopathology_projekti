@@ -33,15 +33,24 @@ class ImageDataset(Dataset):
         if self.transforms is not None:
 
             dc_res = self.transforms({'image': image}, return_torch=False)
+            # dc_res_1 = self.transforms({'image': image}, return_torch=True)
 
             transformed_img = dc_res.data[0].transpose((2, 0, 1)) / 255.0
             transformed_img = torch.from_numpy(transformed_img)
-            transformed_img = tv_transforms.Normalize(mean=[0.73341537, 0.6338761, 0.8134402], std=[0.15178116, 0.21050893, 0.14175205] )(transformed_img.float())
+            if label == 1:
+                transformed_img = tv_transforms.Normalize(mean=[0.6770928, 0.542602, 0.7304085], std=[0.13040712, 0.18353789, 0.14684737])(transformed_img.float())
+            elif label == 0:
+                transformed_img = tv_transforms.Normalize(mean=[0.7558624, 0.6702528, 0.846532], std=[0.15386096, 0.20953797, 0.12515932])(transformed_img.float())
+
+            #or use Image net mean and std:
+            # transformed_img = tv_transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(transformed_img.float())
+            # or use mean and std from the whole dataset.
+            # transformed_img = tv_transforms.Normalize(mean=[0.73341537, 0.6338761, 0.8134402], std=[0.15178116, 0.21050893, 0.14175205])(transformed_img.float())
 
             return {'image': transformed_img, 'label': label, 'image_path': image_path}
         else:
             image = np.array(image)
-            image = image.transpose((2, 0, 1)) # numpy image: H x W x C, torch image: C x H x W
+            image = image.transpose((2, 0, 1)) / 255.0# numpy image: H x W x C, torch image: C x H x W
             image = torch.from_numpy(image)
 
             return {'image': image, 'label': label, 'folderid': folderid, 'image_path': image_path}
@@ -73,8 +82,8 @@ def equal_sample(args, metadata, metadata_folder):
     cancer = metadata[metadata['Class'] == 1]
     not_cancer = metadata[metadata['Class'] == 0]
 
-    sampled_cancer = cancer.sample(n=10000, random_state=args.seed)
-    sampled_not_cancer = not_cancer.sample(n=10000, random_state=args.seed)
+    sampled_cancer = cancer.sample(n=30000, random_state=args.seed)
+    sampled_not_cancer = not_cancer.sample(n=30000, random_state=args.seed)
 
     metadata = pd.concat([sampled_cancer, sampled_not_cancer])
 
@@ -144,7 +153,7 @@ def init_loaders(args, train_split, val_split):
 
     if args.transform:
         train_dataset = ImageDataset(dataset=train_split, transforms=transformations['train'])
-        val_dataset = ImageDataset(dataset=val_split)
+        val_dataset = ImageDataset(dataset=val_split, transforms=transformations['val'])
 
     else:
         train_dataset = ImageDataset(dataset=train_split)
@@ -181,4 +190,9 @@ def init_transformations(args):
         slt.Crop(crop_mode='r', crop_to=(50, 50)),
     ])
 
-    return {"train": train_trsf}
+    val_trsf = slc.Stream([
+        slt.Pad(pad_to=(50,50), padding='r'),
+        slt.Crop(crop_mode='r', crop_to=(50, 50)),
+    ])
+
+    return {"train": train_trsf, "val": val_trsf}
