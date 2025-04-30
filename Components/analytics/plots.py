@@ -34,15 +34,17 @@ def create_loss_plot(args, train_loss, val_loss, logs_path, fold_id, epoch, name
         plt.close()
 
 
-def create_acc_plot(args, logs_path, name, foldid, epoch, acc_list, save=False, show=False):
+def create_acc_plot(args, logs_path, name, foldid, epoch, acc_list, f1_list, save=False, show=False):
 
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
     plt.plot(acc_list[1:])
+    plt.plot(f1_list[1:])
     plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
+    plt.ylabel('Value')
     plt.autoscale(enable=True, axis='Both')
-    plt.title(f'{name}, Accuracy on validation dataset, lr: {args.lr}, optimizer: {args.optimizer}')
+    plt.legend()
+    plt.title(f'{name}, F1-Score and accuracy on validation dataset, lr: {args.lr}, optimizer: {args.optimizer}')
     if save:
         plt.savefig(os.path.join(logs_path, "Figures", f"{name}_accuracy_fold{foldid}_epoch{epoch}"))
     if show:

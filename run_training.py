@@ -102,6 +102,8 @@ if __name__ == "__main__":
             train_list = []
             val_list = []
             acc_list = []
+            f1_list = []
+            best_f1 = 0
 
             for epoch in range(args.n_epochs+1):
 
@@ -111,24 +113,29 @@ if __name__ == "__main__":
                 results_list.append(
                     {"Training loss": train_loss, "Validation loss": validation_loss, "Val_accuracy": accuracy, "ground_truth": ground_truth, "Probs_min": np.min(probs), "Probs_max": np.max(probs),
                      "predictions": predictions, "Epoch": epoch, "Fold_id": fold_id, "TP": confusion_matrix[0, 0],
-                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix, "F1": f1})
+                     "TN": confusion_matrix[1, 1], "FN": confusion_matrix[0, 1], "FP": confusion_matrix[1, 0], "Confusion_matrix": confusion_matrix})
                 train_list.append(train_loss)
                 val_list.append(validation_loss)
                 acc_list.append(accuracy)
+                f1_list.append(f1)
 
                 # Print confusion matrix
                 table = [[label] + row.tolist() for label, row in zip(labels, confusion_matrix)]
                 print(tabulate(table, headers=headers, tablefmt="grid"))
 
-                metrics.logging(args, logs_path, results_list, train_list, val_list, acc_list, epoch, fold_id, name)
+                metrics.logging(args, logs_path, results_list, train_list, val_list, acc_list, f1_list, epoch, fold_id, name)
 
                 if args.optimizer == 'sgd':
                     scheduler.step()
-                gc.collect()
 
-            state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
-            cur_snapshot_name = os.path.join(logs_path, args.model + "_" + args.optimizer + "_" + f"{name}_weights_fold{fold_id}" + ".pth")
-            torch.save(state, cur_snapshot_name)
+                if f1 > best_f1:
+                    best_f1 = f1
+                    state = {'model': net.state_dict(), 'optimizer': optimizer.state_dict()}
+                    cur_snapshot_name = os.path.join(logs_path, args.model + "_" + args.optimizer + "_" + f"best_{name}_weights_fold{fold_id}" + ".pth")
+                    torch.save(state, cur_snapshot_name)
+                    print(f"New best F1-score: {f1}")
+
+                gc.collect()
 
             torch.cuda.empty_cache()
             gc.collect()
