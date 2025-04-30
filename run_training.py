@@ -47,6 +47,7 @@ if __name__ == "__main__":
     os.makedirs(metadata_dir, exist_ok=True)
 
     #Save args
+
     args_dir = os.path.join(metadata_dir,'training_arguments.txt')
     with open(args_dir, 'w') as f:
         json.dump(args.__dict__, f, indent=2)
@@ -71,12 +72,13 @@ if __name__ == "__main__":
 
         for fold_id, content in enumerate(cv_splits):
 
+            args = arguments.parse_args()
             net = utilities.init_model(args, classes=2, TSNE=False)
             optimizer = utilities.init_optimizer(args, net.parameters())
 
             if name == 'Pretrained':
                 net_state_dict = torch.load(args.pretrained_model_params_dir, map_location='cpu', weights_only=False)
-                net_state = utilities.adjust_state_dict(net_state_dict, 1)
+                net_state = utilities.adjust_state_dict(net_state_dict, 2)
 
                 net.load_state_dict(net_state, strict=False)
 
