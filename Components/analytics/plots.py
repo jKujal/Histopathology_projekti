@@ -38,8 +38,8 @@ def create_acc_plot(args, logs_path, name, foldid, epoch, acc_list, f1_list, sav
 
     plt.style.use('dark_background')
     plt.figure(figsize=(10, 5))
-    plt.plot(acc_list[1:])
-    plt.plot(f1_list[1:])
+    plt.plot(acc_list[1:], linestyle='solid', label='Accuracy')
+    plt.plot(f1_list[1:], linestyle='solid', label="F1-score")
     plt.xlabel('Epoch')
     plt.ylabel('Value')
     plt.autoscale(enable=True, axis='Both')
