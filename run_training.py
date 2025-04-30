@@ -83,7 +83,7 @@ if __name__ == "__main__":
                 net.load_state_dict(net_state, strict=False)
 
                 if args.optimizer == 'sgd':
-                    scheduler = MultiStepLR(optimizer, milestones=args.lr_drop,
+                    scheduler = MultiStepLR(optimizer, milestones=args.pretrained_lr_drop,
                                             gamma=args.learning_rate_decay)
             else:
                 if args.optimizer == 'sgd':
