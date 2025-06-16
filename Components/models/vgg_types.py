@@ -30,7 +30,6 @@ class VGGBNDrop(nn.Module):
             nn.ReLU(inplace=True),
 
             nn.Dropout(0.4),
-
             nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),

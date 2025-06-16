@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+from pathlib import Path
 from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 
@@ -73,7 +74,7 @@ def compute_plot_coordinates(image, x, y, image_centers_area_size, offset):
     return tl_x, tl_y, br_x, br_y
 
 
-def visualize_with_images(tx, ty, images, labels, save_dir, show=False, plot_size=1000, max_image_size=100):
+def visualize_with_images(tx, ty, images, labels, save_dir, wrong_pred, show=True, plot_size=1000, max_image_size=100):
     # initialize matplotlib plot
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -102,19 +103,28 @@ def visualize_with_images(tx, ty, images, labels, save_dir, show=False, plot_siz
         # compute the coordinates of the image on the scaled plot visualization
         tl_x, tl_y, br_x, br_y = compute_plot_coordinates(image, x, y, image_centers_area_size, offset)
 
+        # if image_path.stem in wrong_pred:
+        #     plt.annotate(Path(image_path).stem, (br_x, br_y))
+
         # put the image to its TSNE coordinates using numpy subarray indices
-        tsne_plot[tl_y:br_y, tl_x:br_x, :] = image
+        if image_path in wrong_pred:
+            tsne_plot[tl_y:br_y, tl_x:br_x, :] = image
+            # continue
+        else:
+            tsne_plot[tl_y:br_y, tl_x:br_x, :] = image
+            # continue
 
     # build a legend using the labels we set previously
-    ax.legend(loc='best')
+
     plt.title("T-SNE representation of the model outputs by class using input images")
+
     plt.imshow(tsne_plot[:, :, ::-1])
-    plt.savefig(os.path.join(save_dir, "T-SNE_images"))
+    plt.savefig(os.path.join(save_dir, "T-SNE_images"), dpi=1000)
     if show:
         plt.show()
 
 
-def visualize_with_points(tx, ty, labels, save_dir, show=False):
+def visualize_with_points(tx, ty, labels, images, save_dir, show=False):
     colors_per_class = {
         # 'benign_ad': [254, 202, 87],
         # 'benign': [254, 202, 87],
@@ -145,7 +155,7 @@ def visualize_with_points(tx, ty, labels, save_dir, show=False):
         color = np.array([colors_per_class[label][::-1]], dtype=float) / 255
 
         # add a scatter plot with the corresponding color and label
-        ax.scatter(current_tx, current_ty, c=color, label=label)
+        ax.scatter(current_tx, current_ty, c=color, label=label, alpha=0.1)
 
     # build a legend using the labels we set previously
     ax.legend(loc='best')
@@ -153,7 +163,7 @@ def visualize_with_points(tx, ty, labels, save_dir, show=False):
 
     # finally, show the plot
 
-    plt.savefig(os.path.join(save_dir, "T-SNE_points"))
+    plt.savefig(os.path.join(save_dir, "T-SNE_points"), dpi=500)
     if show:
         plt.show()
 
